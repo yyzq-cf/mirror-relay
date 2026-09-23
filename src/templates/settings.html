@@ -58,6 +58,34 @@
     <button class="btn btn-primary" onclick="changePassword()">修改密码</button>
 </div>
 
+<div class="card">
+    <h2>📱 两步验证 (2FA)</h2>
+    {% if twofa_enabled %}
+    <p style="color: var(--success); font-size: 0.875rem; margin-bottom: 0.75rem;">✅ 2FA 已启用</p>
+    <div class="form-row">
+        <input type="text" id="disable-2fa-code" class="input" placeholder="输入当前 2FA 验证码" style="flex: 1;">
+        <button class="btn btn-danger" onclick="disable2FA()">关闭 2FA</button>
+    </div>
+    {% else %}
+    <p style="color: var(--muted); font-size: 0.875rem; margin-bottom: 0.75rem;">未启用 2FA，点击下方按钮生成密钥</p>
+    <button class="btn btn-primary" onclick="setup2FA()">启用 2FA</button>
+    <div id="2fa-setup-result" style="display: none; margin-top: 1rem;">
+        <p style="font-size: 0.85rem; margin-bottom: 0.5rem;">扫码或手动输入密钥到 Authenticator App（Google Authenticator、Authy 等）：</p>
+        <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
+            <img id="2fa-qrcode" src="" alt="QR Code" style="border: 1px solid var(--border); border-radius: 6px;">
+            <div>
+                <p style="font-size: 0.8rem; color: var(--muted); margin-bottom: 0.25rem;">手动输入密钥：</p>
+                <code id="2fa-secret" style="font-family: monospace; font-size: 0.9rem; color: var(--primary); word-break: break-all;"></code>
+            </div>
+        </div>
+        <div class="form-row" style="margin-top: 0.75rem;">
+            <input type="text" id="verify-2fa-code" class="input" placeholder="输入验证码确认" style="flex: 1;">
+            <button class="btn btn-primary" onclick="verify2FA()">确认</button>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
 {% endblock %}
 
 {% block script %}
@@ -94,6 +122,36 @@ function removeUpstream(name) {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name })
     }).then(() => location.reload());
+}
+
+function setup2FA() {
+    fetch('/api/2fa/setup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+    .then(r => r.json()).then(d => {
+        if (d.ok) {
+            // 用 Google Chart API 生成二维码
+            document.getElementById('2fa-qrcode').src = 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=' + encodeURIComponent(d.uri);
+            document.getElementById('2fa-secret').textContent = d.secret;
+            document.getElementById('2fa-setup-result').style.display = 'block';
+        }
+    });
+}
+
+function verify2FA() {
+    const code = document.getElementById('verify-2fa-code').value;
+    fetch('/api/2fa/verify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code }) })
+    .then(r => r.json()).then(d => {
+        if (d.ok) { alert('2FA 验证成功，已启用'); location.reload(); }
+        else alert(d.error);
+    });
+}
+
+function disable2FA() {
+    const code = document.getElementById('disable-2fa-code').value;
+    fetch('/api/2fa/disable', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code }) })
+    .then(r => r.json()).then(d => {
+        if (d.ok) { alert('2FA 已关闭'); location.reload(); }
+        else alert(d.error);
+    });
 }
 
 function changePassword() {

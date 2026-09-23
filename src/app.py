@@ -1,6 +1,7 @@
 import os
 import hashlib
 import secrets
+import pyotp
 from functools import wraps
 from flask import (
     Flask, request, jsonify, render_template, redirect,
@@ -165,14 +166,45 @@ def auth_check():
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     error = ''
+    client_ip = request.headers.get('X-Real-IP', '') or request.remote_addr
+
+    # 暴力破解检查
+    if db.check_login_rate(client_ip):
+        remaining = db.get_login_lock_remaining(client_ip)
+        error = f'登录失败次数过多，请 {remaining} 秒后再试'
+        return render_template('login.html', error=error, twofa_enabled=db.get_config('totp_secret') != '')
+
     if request.method == 'POST':
         password = request.form.get('password', '')
+        totp_code = request.form.get('totp_code', '').strip()
         stored = db.get_config('admin_password', '')
-        if stored and hashlib.sha256(password.encode()).hexdigest() == stored:
-            session['logged_in'] = True
-            return redirect(url_for('dashboard'))
-        error = '密码错误'
-    return render_template('login.html', error=error)
+
+        # 验证密码
+        if not stored or hashlib.sha256(password.encode()).hexdigest() != stored:
+            db.log_login_attempt(client_ip, 'admin', False)
+            error = '密码错误'
+            return render_template('login.html', error=error, twofa_enabled=db.get_config('totp_secret') != '')
+
+        # 验证 2FA（如果已启用）
+        totp_secret = db.get_config('totp_secret', '')
+        if totp_secret:
+            if not totp_code:
+                # 密码正确但需要 2FA
+                session['pending_2fa'] = True
+                db.log_login_attempt(client_ip, 'admin', True)
+                return render_template('login.html', error='', twofa_enabled=True, need_2fa=True)
+            if not pyotp.TOTP(totp_secret).verify(totp_code, valid_window=1):
+                db.log_login_attempt(client_ip, 'admin', False)
+                error = '2FA 验证码错误'
+                return render_template('login.html', error=error, twofa_enabled=True, need_2fa=True)
+
+        # 登录成功
+        db.clear_login_attempts(client_ip)
+        session['logged_in'] = True
+        session.pop('pending_2fa', None)
+        return redirect(url_for('dashboard'))
+
+    return render_template('login.html', error=error, twofa_enabled=db.get_config('totp_secret') != '')
 
 
 @app.route('/logout')
@@ -227,7 +259,8 @@ def settings():
         'whitelist_enabled': db.get_config('whitelist_enabled', '0'),
     }
     upstreams = db.get_upstreams()
-    return render_template('settings.html', config=config, upstreams=upstreams)
+    twofa_enabled = bool(db.get_config('totp_secret', ''))
+    return render_template('settings.html', config=config, upstreams=upstreams, twofa_enabled=twofa_enabled)
 
 
 # ── API ──
@@ -295,6 +328,44 @@ def update_settings():
 def cache_delete():
     image_id = request.json.get('id')
     db.delete_cached_image(image_id)
+    return jsonify({'ok': True})
+
+
+@app.route('/api/2fa/setup', methods=['POST'])
+@login_required
+def setup_2fa():
+    """生成 2FA 密钥和二维码 URI"""
+    secret = pyotp.random_base32()
+    db.set_config('totp_secret', secret)
+    uri = pyotp.TOTP(secret).provisioning_uri(name='admin', issuer_name='Mirror Relay')
+    return jsonify({'ok': True, 'secret': secret, 'uri': uri})
+
+
+@app.route('/api/2fa/verify', methods=['POST'])
+@login_required
+def verify_2fa():
+    """验证 2FA 验证码"""
+    code = request.json.get('code', '').strip()
+    secret = db.get_config('totp_secret', '')
+    if not secret:
+        return jsonify({'error': '2FA 未设置'}), 400
+    if pyotp.TOTP(secret).verify(code, valid_window=1):
+        return jsonify({'ok': True})
+    return jsonify({'error': '验证码错误'}), 400
+
+
+@app.route('/api/2fa/disable', methods=['POST'])
+@login_required
+def disable_2fa():
+    """关闭 2FA"""
+    # 需要验证当前 2FA 码才能关闭
+    code = request.json.get('code', '').strip()
+    secret = db.get_config('totp_secret', '')
+    if not secret:
+        return jsonify({'error': '2FA 未设置'}), 400
+    if not pyotp.TOTP(secret).verify(code, valid_window=1):
+        return jsonify({'error': '验证码错误'}), 403
+    db.set_config('totp_secret', '')
     return jsonify({'ok': True})
 
 

@@ -10,7 +10,16 @@
     <p style="color: var(--danger); margin-bottom: 1rem; font-size: 0.875rem;">{{ error }}</p>
     {% endif %}
     <form method="POST" action="/login">
+        {% if need_2fa %}
+        <input type="hidden" name="password" value="{{ request.form.password }}">
+        <p style="color: var(--muted); font-size: 0.8rem; margin-bottom: 0.5rem;">密码已验证，请输入 2FA 验证码</p>
+        <input type="text" name="totp_code" class="input" placeholder="6 位验证码" autofocus maxlength="6" pattern="[0-9]{6}" inputmode="numeric" style="margin-bottom: 0.75rem; text-align: center; letter-spacing: 4px; font-size: 1.2rem;">
+        {% else %}
         <input type="password" name="password" class="input" placeholder="管理员密码" autofocus style="margin-bottom: 0.75rem;">
+        {% if twofa_enabled %}
+        <input type="text" name="totp_code" class="input" placeholder="2FA 验证码（可选）" maxlength="6" inputmode="numeric" style="margin-bottom: 0.75rem; text-align: center; letter-spacing: 2px;">
+        {% endif %}
+        {% endif %}
         <button type="submit" class="btn btn-primary" style="width: 100%;">登录</button>
     </form>
     <a href="https://github.com/yyzq-cf/mirror-relay" target="_blank" style="display: inline-flex; align-items: center; gap: 6px; margin-top: 1.25rem; color: var(--muted); font-size: 0.8rem; text-decoration: none;">

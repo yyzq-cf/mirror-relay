@@ -72,4 +72,4 @@ nginx -g 'daemon off;' &
 python3 /app/src/cache_manager.py &
 
 # ── 启动 Web UI (前台) ──
-exec gunicorn -w 2 -b 0.0.0.0:8080 app:app --chdir /app/src
+exec gunicorn -w 1 -b 0.0.0.0:8080 app:app --chdir /app/src

@@ -101,6 +101,16 @@ def init_db():
     except sqlite3.OperationalError:
         pass
 
+    # 登录失败记录表（暴力破解防护）
+    conn.execute("CREATE TABLE IF NOT EXISTS login_attempts (id INTEGER PRIMARY KEY, ip TEXT NOT NULL, username TEXT, success INTEGER DEFAULT 0, attempted_at DATETIME)")
+
+
+    # 2FA 密钥
+    try:
+        conn.execute('ALTER TABLE config ADD COLUMN totp_secret')
+    except sqlite3.OperationalError:
+        pass
+
     conn.commit()
     conn.close()
 
@@ -292,5 +302,56 @@ def add_upstream(name, url, prefix):
 def remove_upstream(name):
     conn = get_conn()
     conn.execute('DELETE FROM upstreams WHERE name = ?', (name,))
+    conn.commit()
+    conn.close()
+
+
+# ── 暴力破解防护 ──
+
+def check_login_rate(ip, max_attempts=5, window_seconds=300):
+    """检查 IP 是否超过登录失败次数限制"""
+    conn = get_conn()
+    from datetime import datetime, timezone, timedelta
+    cutoff = (datetime.now(timezone.utc) - timedelta(seconds=window_seconds)).isoformat()
+    row = conn.execute(
+        'SELECT COUNT(*) as c FROM login_attempts WHERE ip = ? AND success = 0 AND attempted_at > ?',
+        (ip, cutoff)
+    ).fetchone()
+    conn.close()
+    return row['c'] >= max_attempts
+
+
+def get_login_lock_remaining(ip, max_attempts=5, window_seconds=300):
+    """获取剩余锁定秒数"""
+    conn = get_conn()
+    from datetime import datetime, timezone, timedelta
+    cutoff = (datetime.now(timezone.utc) - timedelta(seconds=window_seconds)).isoformat()
+    rows = conn.execute(
+        'SELECT attempted_at FROM login_attempts WHERE ip = ? AND success = 0 AND attempted_at > ? ORDER BY attempted_at DESC LIMIT ?',
+        (ip, cutoff, max_attempts)
+    ).fetchall()
+    conn.close()
+    if len(rows) >= max_attempts and rows:
+        oldest = datetime.fromisoformat(rows[-1]['attempted_at'])
+        unlock_at = oldest + timedelta(seconds=window_seconds)
+        remaining = (unlock_at - datetime.now(timezone.utc)).total_seconds()
+        return max(0, int(remaining))
+    return 0
+
+
+def log_login_attempt(ip, username='', success=False):
+    conn = get_conn()
+    from datetime import datetime, timezone
+    conn.execute(
+        'INSERT INTO login_attempts(ip, username, success, attempted_at) VALUES (?, ?, ?, ?)',
+        (ip, username, 1 if success else 0, datetime.now(timezone.utc).isoformat())
+    )
+    conn.commit()
+    conn.close()
+
+
+def clear_login_attempts(ip):
+    conn = get_conn()
+    conn.execute('DELETE FROM login_attempts WHERE ip = ?', (ip,))
     conn.commit()
     conn.close()
