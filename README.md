@@ -198,15 +198,14 @@ services:
       - "5000:5000"
       - "8080:8080"
     volumes:
-      - mirror-data:/data
+      - ./data:/data
     environment:
       - MAX_DISK_PCT=80
       - TARGET_DISK_PCT=70
       - CLEANUP_INTERVAL=300
-
-volumes:
-  mirror-data:
 ```
+
+数据保存在当前目录的 `data/` 目录下，方便备份和迁移。
 
 ## 端口说明
 
