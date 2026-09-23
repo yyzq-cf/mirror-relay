@@ -81,7 +81,7 @@ server {
 ```bash
 docker run -d \
   --name mirror-relay \
-  --restart unless-stopped \
+  --restart always \
   -p 5000:5000 \
   -p 8080:8080 \
   -v mirror-data:/data \
@@ -193,7 +193,7 @@ services:
   mirror-relay:
     image: ywsj/mirror-relay:latest
     container_name: mirror-relay
-    restart: unless-stopped
+    restart: always
     ports:
       - "5000:5000"
       - "8080:8080"
