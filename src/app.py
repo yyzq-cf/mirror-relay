@@ -8,7 +8,7 @@ from flask import (
 )
 import db
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder='static')
 def _load_secret_key():
     """持久化 secret_key 到 /data，避免重启后 session 失效"""
     key_file = os.path.join(DATA_DIR, '.flask_secret_key')
@@ -79,14 +79,14 @@ import re
 
 def _parse_pull_uri(uri):
     """从 /v2/<image>/manifests/<tag> 或 /v2/<image>/blobs/<digest> 解析拉取信息"""
-    # 匹配 /v2/xxx/manifests/yyy 或 /v2/xxx/blobs/sha256:...
     m = re.match(r'^/v2/(.+)/(manifests|blobs)/(.+)$', uri)
     if not m:
         return None, None, None, False
     image_name, kind, ref = m.group(1), m.group(2), m.group(3)
-    tag = ref if kind == 'manifests' and not ref.startswith('sha256:') else None
+    # tag 可能是 tag name 也可能是 sha256:digest
     is_manifest = kind == 'manifests'
-    return image_name, tag, kind, is_manifest
+    is_direct_manifest = is_manifest and not ref.startswith('sha256:')
+    return image_name, ref, is_direct_manifest, is_manifest
 
 
 def _detect_upstream(uri):
@@ -98,11 +98,24 @@ def _detect_upstream(uri):
     return 'hub'
 
 
-def _check_cache_exists(upstream, image_name, tag):
-    """检查 registry 存储中是否已缓存该镜像 tag"""
+def _check_cache_exists(upstream, image_name, ref):
+    """检查 registry 存储中是否已缓存该镜像 tag 或 manifest"""
     repo_dir = os.path.join(DATA_DIR, 'registry', upstream, 'docker', 'registry', 'v2', 'repositories', image_name)
-    current_link = os.path.join(repo_dir, '_manifests', 'tags', tag, 'current', 'link')
-    return os.path.exists(current_link)
+    # 如果是 tag name
+    tag_link = os.path.join(repo_dir, '_manifests', 'tags', ref, 'current', 'link')
+    if os.path.exists(tag_link):
+        return True
+    # 如果是 digest，检查 revisions 目录
+    revisions_dir = os.path.join(repo_dir, '_manifests', 'revisions', 'sha256')
+    if os.path.exists(revisions_dir):
+        digest_hash = ref.split(':')[-1] if ':' in ref else ref
+        for h in os.listdir(revisions_dir):
+            if h == digest_hash:
+                link_path = os.path.join(revisions_dir, h, 'link')
+                if os.path.exists(link_path):
+                    return True
+    # fallback: 只要这个 image 目录存在就算命中
+    return os.path.exists(os.path.join(repo_dir, '_manifests'))
 
 
 @app.route('/api/auth/check', methods=['GET', 'POST'])
@@ -114,12 +127,13 @@ def auth_check():
         client_ip = request.remote_addr
 
     if original_uri:
-        image_name, tag, kind, is_manifest = _parse_pull_uri(original_uri)
+        image_name, ref, is_direct_manifest, is_manifest = _parse_pull_uri(original_uri)
         if image_name and is_manifest:
             upstream = _detect_upstream(original_uri)
-            # 判断缓存命中：检查 registry 存储目录中是否已有此 manifest
-            cache_hit = _check_cache_exists(upstream, image_name, tag)
-            db.log_pull(upstream, image_name, tag, cache_hit, client_ip)
+            cache_hit = _check_cache_exists(upstream, image_name, ref)
+            # 只对 tag 拉取记录日志（digest 拉取是 docker 内部行为）
+            if is_direct_manifest:
+                db.log_pull(upstream, image_name, ref, cache_hit, client_ip)
             # 如果是首次拉取（新镜像），触发一次缓存扫描更新 DB
             if not cache_hit:
                 try:
@@ -134,6 +148,15 @@ def auth_check():
         return '', 200
     if db.is_ip_whitelisted(client_ip):
         return '', 200
+
+    # 被白名单拒绝，记录日志
+    if original_uri and is_manifest and is_direct_manifest:
+        db.log_pull(upstream, image_name, ref, False, client_ip,
+                    status='denied', reason='IP 不在白名单中')
+    elif original_uri and is_manifest and not is_direct_manifest:
+        db.log_pull(upstream, image_name, ref, False, client_ip,
+                    status='denied', reason='IP 不在白名单中')
+
     return '', 403
 
 

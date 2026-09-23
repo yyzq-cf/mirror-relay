@@ -12,8 +12,10 @@
                 <th>上游</th>
                 <th>镜像</th>
                 <th>Tag</th>
+                <th>状态</th>
                 <th>命中</th>
                 <th>来源 IP</th>
+                <th>原因</th>
             </tr>
         </thead>
         <tbody>
@@ -24,13 +26,23 @@
                 <td>{{ log.image_name }}</td>
                 <td>{{ log.tag or '-' }}</td>
                 <td>
-                    {% if log.cache_hit %}
+                    {% if log.status == 'denied' %}
+                    <span class="badge badge-danger">拒绝</span>
+                    {% else %}
+                    <span class="badge badge-success">允许</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if log.status == 'denied' %}
+                    <span class="badge badge-muted">-</span>
+                    {% elif log.cache_hit %}
                     <span class="badge badge-success">命中</span>
                     {% else %}
                     <span class="badge badge-warning">透传</span>
                     {% endif %}
                 </td>
                 <td style="font-family: monospace; font-size: 0.8rem;">{{ log.client_ip }}</td>
+                <td style="color: var(--danger); font-size: 0.8rem;">{{ log.reason or '' }}</td>
             </tr>
             {% endfor %}
         </tbody>

@@ -155,6 +155,51 @@ def _get_blob_size(blob_root, digest):
         return 0
 
 
+def _read_blob_json(blob_root, digest):
+    """读取 blob 内容并解析 JSON"""
+    import json
+    algo, hashpart = digest.split(':', 1)
+    prefix = hashpart[:2]
+    blob_path = os.path.join(blob_root, algo, prefix, hashpart, 'data')
+    try:
+        with open(blob_path, 'r') as f:
+            return json.load(f)
+    except (OSError, IOError, ValueError):
+        return None
+
+
+def _calc_manifest_size(blob_root, digest):
+    """递归跟随 manifest 链，累计实际存在的 blob 大小"""
+    total = _get_blob_size(blob_root, digest)
+    manifest = _read_blob_json(blob_root, digest)
+    if not manifest:
+        return total
+
+    # Case 1: OCI index / Docker manifest list (多架构)
+    if 'manifests' in manifest:
+        for m in manifest['manifests']:
+            sub_digest = m['digest']
+            sub = _read_blob_json(blob_root, sub_digest)
+            if not sub:
+                continue  # 未拉取的架构，跳过
+            total += _get_blob_size(blob_root, sub_digest)
+            if 'layers' in sub:
+                for layer in sub['layers']:
+                    total += _get_blob_size(blob_root, layer['digest'])
+            if 'config' in sub:
+                total += _get_blob_size(blob_root, sub['config']['digest'])
+        return total
+
+    # Case 2: 单架构 manifest (直接有 layers)
+    if 'layers' in manifest:
+        for layer in manifest['layers']:
+            total += _get_blob_size(blob_root, layer['digest'])
+        if 'config' in manifest:
+            total += _get_blob_size(blob_root, manifest['config']['digest'])
+
+    return total
+
+
 def _find_image_dirs(repo_base):
     """递归找到所有包含 _manifests 的目录，返回 image_name 列表"""
     results = []
@@ -198,18 +243,8 @@ def scan_cache():
                 if not digest:
                     continue
 
-                size = 0
-                size += _get_blob_size(blob_root, digest)
-
-                layers_dir = os.path.join(repo_dir, image_name, '_layers')
-                if os.path.exists(layers_dir):
-                    for algo in os.listdir(layers_dir):
-                        algo_dir = os.path.join(layers_dir, algo)
-                        if not os.path.isdir(algo_dir):
-                            continue
-                        for hashpart in os.listdir(algo_dir):
-                            layer_digest = f'{algo}:{hashpart}'
-                            size += _get_blob_size(blob_root, layer_digest)
+                # 递归跟随 manifest 链计算真实大小
+                size = _calc_manifest_size(blob_root, digest)
 
                 db.upsert_cached_image(upstream, image_name, tag_name, digest, size)
                 log.info(f'  {upstream}/{image_name}:{tag_name} ({size // 1024} KB)')

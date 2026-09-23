@@ -34,7 +34,17 @@
                 <td><span class="badge badge-muted">{{ img.upstream }}</span></td>
                 <td>{{ img.image_name }}</td>
                 <td>{{ img.tag or '-' }}</td>
-                <td>{{ (img.size_bytes / 1048576) | round(1) if img.size_bytes else '-' }} MB</td>
+                <td>
+                    {% if img.size_bytes %}
+                        {% if img.size_bytes >= 1048576 %}
+                            {{ (img.size_bytes / 1048576) | round(1) }} MB
+                        {% else %}
+                            {{ (img.size_bytes / 1024) | round(1) }} KB
+                        {% endif %}
+                    {% else %}
+                        -
+                    {% endif %}
+                </td>
                 <td>{{ img.pull_count }}</td>
                 <td style="color: var(--muted); font-size: 0.8rem;">{{ img.last_pulled_at[:19] if img.last_pulled_at else '-' }}</td>
                 <td><button class="btn btn-danger btn-sm" onclick="delCache({{ img.id }})">删除</button></td>

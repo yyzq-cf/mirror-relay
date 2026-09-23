@@ -96,14 +96,20 @@
 </head>
 <body>
     <nav class="nav">
-        <span class="nav-brand">🔀 Mirror Relay</span>
+        <span class="nav-brand">
+            <a href="https://github.com/yyzq-cf/mirror-relay" target="_blank" style="text-decoration: none; display: flex; align-items: center; gap: 6px;">
+                <img src="{{ url_for('static', filename='logo.svg') }}" alt="logo" width="28" height="28" style="vertical-radius: 5px;">
+                <span style="color: var(--primary);">Mirror Relay</span>
+            </a>
+        </span>
         {% if session.get('logged_in') %}
-        <a href="/" class="{{ 'active' if active == 'dashboard' else '' }}">仪表盘</a>
-        <a href="/cache" class="{{ 'active' if active == 'cache' else '' }}">缓存列表</a>
-        <a href="/logs" class="{{ 'active' if active == 'logs' else '' }}">拉取日志</a>
-        <a href="/whitelist" class="{{ 'active' if active == 'whitelist' else '' }}">白名单</a>
-        <a href="/settings" class="{{ 'active' if active == 'settings' else '' }}">设置</a>
+        <a href="/" class="{{ 'active' if active == 'dashboard' else '' }}">📊 仪表盘</a>
+        <a href="/cache" class="{{ 'active' if active == 'cache' else '' }}">📦 缓存列表</a>
+        <a href="/logs" class="{{ 'active' if active == 'logs' else '' }}">📋 拉取日志</a>
+        <a href="/whitelist" class="{{ 'active' if active == 'whitelist' else '' }}">🛡 白名单</a>
+        <a href="/settings" class="{{ 'active' if active == 'settings' else '' }}">⚙️ 设置</a>
         <span class="nav-right" style="display: flex; align-items: center; gap: 0.5rem;">
+            <a href="https://github.com/yyzq-cf/mirror-relay" target="_blank" title="GitHub" style="font-size: 1.1rem; text-decoration: none;">🐙</a>
             <button class="theme-btn" onclick="toggleTheme()" id="themeBtn" title="切换主题">🌙</button>
             <a href="/logout">退出</a>
         </span>

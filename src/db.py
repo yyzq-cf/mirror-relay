@@ -37,7 +37,9 @@ def init_db():
             tag TEXT,
             cache_hit INTEGER DEFAULT 0,
             client_ip TEXT,
-            pulled_at DATETIME
+            pulled_at DATETIME,
+            status TEXT DEFAULT 'allowed',
+            reason TEXT
         );
 
         CREATE TABLE IF NOT EXISTS whitelist (
@@ -88,6 +90,16 @@ def init_db():
             'VALUES (?, ?, ?, ?, ?)',
             (name, url, prefix, enabled, now)
         )
+
+    # 迁移：给旧的 pull_logs 表补字段
+    try:
+        conn.execute('ALTER TABLE pull_logs ADD COLUMN status TEXT DEFAULT "allowed"')
+    except sqlite3.OperationalError:
+        pass
+    try:
+        conn.execute('ALTER TABLE pull_logs ADD COLUMN reason TEXT')
+    except sqlite3.OperationalError:
+        pass
 
     conn.commit()
     conn.close()
@@ -175,13 +187,13 @@ def whitelist_enabled():
 
 # ── 拉取日志 ──
 
-def log_pull(upstream, image_name, tag, cache_hit, client_ip):
+def log_pull(upstream, image_name, tag, cache_hit, client_ip, status='allowed', reason=None):
     conn = get_conn()
     conn.execute(
-        'INSERT INTO pull_logs(upstream, image_name, tag, cache_hit, client_ip, pulled_at) '
-        'VALUES (?, ?, ?, ?, ?, ?)',
+        'INSERT INTO pull_logs(upstream, image_name, tag, cache_hit, client_ip, pulled_at, status, reason) '
+        'VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
         (upstream, image_name, tag, 1 if cache_hit else 0, client_ip,
-         datetime.now(timezone.utc).isoformat())
+         datetime.now(timezone.utc).isoformat(), status, reason)
     )
     conn.commit()
     conn.close()
