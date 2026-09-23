@@ -9,9 +9,28 @@ from flask import (
 import db
 
 app = Flask(__name__)
-app.secret_key = os.environ.get('FLASK_SECRET_KEY', secrets.token_hex(32))
+def _load_secret_key():
+    """持久化 secret_key 到 /data，避免重启后 session 失效"""
+    key_file = os.path.join(DATA_DIR, '.flask_secret_key')
+    try:
+        with open(key_file, 'r') as f:
+            return f.read().strip()
+    except (OSError, IOError):
+        pass
+    # 首次生成
+    key = secrets.token_hex(32)
+    try:
+        with open(key_file, 'w') as f:
+            f.write(key)
+        os.chmod(key_file, 0o600)
+    except OSError:
+        pass
+    return key
+
 
 DATA_DIR = os.environ.get('MIRROR_DATA_DIR', '/data')
+
+app.secret_key = _load_secret_key()
 _env_admin_pw = os.environ.get('MIRROR_ADMIN_PW', '')
 
 
@@ -56,13 +75,63 @@ def login_required(f):
 
 # ── 鉴权端点 (给 nginx auth_request 用) ──
 
+import re
+
+def _parse_pull_uri(uri):
+    """从 /v2/<image>/manifests/<tag> 或 /v2/<image>/blobs/<digest> 解析拉取信息"""
+    # 匹配 /v2/xxx/manifests/yyy 或 /v2/xxx/blobs/sha256:...
+    m = re.match(r'^/v2/(.+)/(manifests|blobs)/(.+)$', uri)
+    if not m:
+        return None, None, None, False
+    image_name, kind, ref = m.group(1), m.group(2), m.group(3)
+    tag = ref if kind == 'manifests' and not ref.startswith('sha256:') else None
+    is_manifest = kind == 'manifests'
+    return image_name, tag, kind, is_manifest
+
+
+def _detect_upstream(uri):
+    """从 URI 前缀判断上游"""
+    if uri.startswith('/ghcr/'):
+        return 'ghcr'
+    elif uri.startswith('/gcr/'):
+        return 'gcr'
+    return 'hub'
+
+
+def _check_cache_exists(upstream, image_name, tag):
+    """检查 registry 存储中是否已缓存该镜像 tag"""
+    repo_dir = os.path.join(DATA_DIR, 'registry', upstream, 'docker', 'registry', 'v2', 'repositories', image_name)
+    current_link = os.path.join(repo_dir, '_manifests', 'tags', tag, 'current', 'link')
+    return os.path.exists(current_link)
+
+
 @app.route('/api/auth/check', methods=['GET', 'POST'])
 def auth_check():
-    if not db.whitelist_enabled():
-        return '', 200
+    # 解析拉取信息并记录日志
+    original_uri = request.headers.get('X-Original-URI', '')
     client_ip = request.headers.get('X-Real-IP', '')
     if not client_ip:
         client_ip = request.remote_addr
+
+    if original_uri:
+        image_name, tag, kind, is_manifest = _parse_pull_uri(original_uri)
+        if image_name and is_manifest:
+            upstream = _detect_upstream(original_uri)
+            # 判断缓存命中：检查 registry 存储目录中是否已有此 manifest
+            cache_hit = _check_cache_exists(upstream, image_name, tag)
+            db.log_pull(upstream, image_name, tag, cache_hit, client_ip)
+            # 如果是首次拉取（新镜像），触发一次缓存扫描更新 DB
+            if not cache_hit:
+                try:
+                    import threading
+                    from cache_manager import scan_cache
+                    threading.Thread(target=scan_cache, daemon=True).start()
+                except Exception:
+                    pass
+
+    # 白名单检查
+    if not db.whitelist_enabled():
+        return '', 200
     if db.is_ip_whitelisted(client_ip):
         return '', 200
     return '', 403

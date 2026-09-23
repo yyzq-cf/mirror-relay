@@ -15,11 +15,25 @@
             --danger: #ef4444;
             --success: #22c55e;
             --warning: #f59e0b;
+            --hover: rgba(255,255,255,0.04);
+        }
+        [data-theme="light"] {
+            --bg: #f1f5f9;
+            --card: #ffffff;
+            --border: #cbd5e1;
+            --text: #1e293b;
+            --muted: #64748b;
+            --primary: #0284c7;
+            --danger: #dc2626;
+            --success: #16a34a;
+            --warning: #d97706;
+            --hover: rgba(0,0,0,0.03);
         }
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
             background: var(--bg); color: var(--text); line-height: 1.6;
+            transition: background 0.3s, color 0.3s;
         }
         .nav {
             background: var(--card); border-bottom: 1px solid var(--border);
@@ -31,7 +45,7 @@
         .nav a:hover, .nav a.active { color: var(--text); background: var(--border); }
         .nav-right { margin-left: auto; }
         .container { max-width: 1100px; margin: 0 auto; padding: 1.5rem; }
-        .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 1.25rem; margin-bottom: 1rem; }
+        .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 1.25rem; margin-bottom: 1rem; transition: background 0.3s, border-color 0.3s; }
         .card h2 { font-size: 1rem; color: var(--muted); margin-bottom: 0.75rem; font-weight: 600; }
         .grid { display: grid; gap: 1rem; }
         .grid-4 { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
@@ -43,7 +57,7 @@
         table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
         th { text-align: left; color: var(--muted); padding: 0.5rem; border-bottom: 1px solid var(--border); font-weight: 600; }
         td { padding: 0.5rem; border-bottom: 1px solid var(--border); }
-        tr:hover td { background: rgba(255,255,255,0.02); }
+        tr:hover td { background: var(--hover); }
         .btn { display: inline-block; padding: 0.4rem 0.9rem; border-radius: 6px; border: none; cursor: pointer; font-size: 0.85rem; text-decoration: none; }
         .btn-primary { background: var(--primary); color: #fff; }
         .btn-danger { background: var(--danger); color: #fff; }
@@ -69,7 +83,16 @@
         textarea.input { min-height: 120px; font-family: monospace; }
         .bar { height: 8px; border-radius: 4px; background: var(--border); overflow: hidden; margin-top: 0.5rem; }
         .bar-fill { height: 100%; border-radius: 4px; transition: width 0.5s; }
+        .theme-btn { background: none; border: 1px solid var(--border); border-radius: 6px; cursor: pointer; font-size: 1.1rem; padding: 4px 8px; line-height: 1; color: var(--text); }
+        .theme-btn:hover { background: var(--border); }
     </style>
+    <script>
+        // 防闪：在页面渲染前同步读取主题
+        (function() {
+            var t = localStorage.getItem('theme') || 'dark';
+            document.documentElement.setAttribute('data-theme', t);
+        })();
+    </script>
 </head>
 <body>
     <nav class="nav">
@@ -80,12 +103,30 @@
         <a href="/logs" class="{{ 'active' if active == 'logs' else '' }}">拉取日志</a>
         <a href="/whitelist" class="{{ 'active' if active == 'whitelist' else '' }}">白名单</a>
         <a href="/settings" class="{{ 'active' if active == 'settings' else '' }}">设置</a>
-        <a href="/logout" class="nav-right">退出</a>
+        <span class="nav-right" style="display: flex; align-items: center; gap: 0.5rem;">
+            <button class="theme-btn" onclick="toggleTheme()" id="themeBtn" title="切换主题">🌙</button>
+            <a href="/logout">退出</a>
+        </span>
         {% endif %}
     </nav>
     <div class="container">
         {% block content %}{% endblock %}
     </div>
     {% block script %}{% endblock %}
+    <script>
+        function toggleTheme() {
+            var current = document.documentElement.getAttribute('data-theme');
+            var next = current === 'dark' ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-theme', next);
+            localStorage.setItem('theme', next);
+            document.getElementById('themeBtn').textContent = next === 'dark' ? '🌙' : '☀️';
+        }
+        // 页面加载时同步按钮图标
+        (function() {
+            var t = localStorage.getItem('theme') || 'dark';
+            var btn = document.getElementById('themeBtn');
+            if (btn) btn.textContent = t === 'dark' ? '🌙' : '☀️';
+        })();
+    </script>
 </body>
 </html>

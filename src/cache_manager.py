@@ -135,46 +135,100 @@ def cleanup_lru():
         run_registry_gc(upstream)
 
 
+def _read_link(path):
+    """读取 registry 的 link 文件内容（digest）"""
+    try:
+        with open(path, 'r') as f:
+            return f.read().strip()
+    except (OSError, IOError):
+        return ''
+
+
+def _get_blob_size(blob_root, digest):
+    """根据 digest 获取 blob 文件大小"""
+    algo, hashpart = digest.split(':', 1)
+    prefix = hashpart[:2]
+    blob_path = os.path.join(blob_root, algo, prefix, hashpart, 'data')
+    try:
+        return os.path.getsize(blob_path)
+    except OSError:
+        return 0
+
+
+def _find_image_dirs(repo_base):
+    """递归找到所有包含 _manifests 的目录，返回 image_name 列表"""
+    results = []
+    for root, dirs, _ in os.walk(repo_base):
+        if '_manifests' in dirs:
+            image_name = os.path.relpath(root, repo_base)
+            results.append(image_name)
+            dirs.clear()
+        else:
+            dirs[:] = [d for d in dirs if not d.startswith('_')]
+    return results
+
+
 def scan_cache():
     """扫描缓存目录，更新 DB 中的镜像统计"""
-    for upstream in ['hub', 'ghcr', 'gcr']:
-        repo_dir = os.path.join(REGISTRY_DIR, upstream, 'repositories')
+    upstreams = [u['name'] for u in db.get_upstreams()] or ['hub', 'ghcr', 'gcr']
+
+    for upstream in upstreams:
+        repo_dir = os.path.join(REGISTRY_DIR, upstream, 'docker', 'registry', 'v2', 'repositories')
+        blob_root = os.path.join(REGISTRY_DIR, upstream, 'docker', 'registry', 'v2', 'blobs')
         if not os.path.exists(repo_dir):
             continue
 
-        for namespace in os.listdir(repo_dir):
-            ns_dir = os.path.join(repo_dir, namespace)
-            if not os.path.isdir(ns_dir):
-                continue
-            # 扫描 _manifests 下的 tags
-            manifests_dir = os.path.join(ns_dir, '_manifests')
+        image_names = _find_image_dirs(repo_dir)
+        log.info(f'scanning {upstream}: found {len(image_names)} images')
+
+        for image_name in image_names:
+            manifests_dir = os.path.join(repo_dir, image_name, '_manifests', 'tags')
             if not os.path.exists(manifests_dir):
                 continue
 
-            # 递归找所有 image_name
-            for root, dirs, files in os.walk(manifests_dir):
-                if '_layers' in root or '_uploads' in root:
+            for tag_name in os.listdir(manifests_dir):
+                if tag_name.startswith('_'):
                     continue
-                # tags/current → 镜像名可从路径推断
-                if 'tags' in dirs:
-                    tags_dir = os.path.join(root, 'tags', 'current')
-                    if not os.path.exists(tags_dir):
-                        tags_dir = os.path.join(root, 'tags')
-                    if os.path.exists(tags_dir):
-                        for tag_name in os.listdir(tags_dir):
-                            if tag_name.startswith('_'):
-                                continue
-                            image_name = namespace
-                            # 构造 image_name: namespace/repo
-                            # 路径形如 repositories/namespace/_manifests/tags/current/tag
-                            pass
+                tag_dir = os.path.join(manifests_dir, tag_name)
+                if not os.path.isdir(tag_dir):
+                    continue
+
+                current_link = os.path.join(tag_dir, 'current', 'link')
+                digest = _read_link(current_link)
+                if not digest:
+                    continue
+
+                size = 0
+                size += _get_blob_size(blob_root, digest)
+
+                layers_dir = os.path.join(repo_dir, image_name, '_layers')
+                if os.path.exists(layers_dir):
+                    for algo in os.listdir(layers_dir):
+                        algo_dir = os.path.join(layers_dir, algo)
+                        if not os.path.isdir(algo_dir):
+                            continue
+                        for hashpart in os.listdir(algo_dir):
+                            layer_digest = f'{algo}:{hashpart}'
+                            size += _get_blob_size(blob_root, layer_digest)
+
+                db.upsert_cached_image(upstream, image_name, tag_name, digest, size)
+                log.info(f'  {upstream}/{image_name}:{tag_name} ({size // 1024} KB)')
 
     log.info('cache scan completed')
+
+
+def scheduled_scan():
+    """定时扫描任务"""
+    try:
+        scan_cache()
+    except Exception as e:
+        log.error(f'scan error: {e}')
 
 
 def scheduled_cleanup():
     """定时清理任务"""
     try:
+        scan_cache()
         cleanup_lru()
     except Exception as e:
         log.error(f'cleanup error: {e}')
@@ -193,7 +247,7 @@ def main():
     scheduler = BackgroundScheduler()
     scheduler.add_job(
         scheduled_cleanup, 'interval', seconds=interval,
-        id='cleanup', next_run_time=datetime.now() + timedelta(seconds=30)
+        id='cleanup', next_run_time=datetime.now() + timedelta(seconds=10)
     )
     scheduler.start()
     log.info(f'scheduler started, interval={interval}s')
