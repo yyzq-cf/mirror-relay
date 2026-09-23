@@ -3,7 +3,6 @@ name: Build and Push Docker Image
 on:
   push:
     branches: [main]
-    tags: ['v*']
   workflow_dispatch:
 
 jobs:
@@ -12,6 +11,8 @@ jobs:
     permissions:
       contents: write
       packages: write
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@v4
 
@@ -27,17 +28,23 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Generate tags
-        id: tags
+      - name: Generate version
+        id: version
         run: |
-          BASE=ywsj/mirror-relay
-          TAGS="${BASE}:latest"
-          if [[ $GITHUB_REF == refs/tags/v* ]]; then
-            VERSION=${GITHUB_REF#refs/tags/}
-            TAGS="${TAGS},${BASE}:${VERSION}"
-          fi
-          TAGS="${TAGS},${BASE}:sha-${GITHUB_SHA::7}"
-          echo "tags=${TAGS}" >> $GITHUB_OUTPUT
+          TZ_DATE=$(TZ='Asia/Shanghai' date '+%Y%m%d')
+          # 查询今天已有的 tag 数量，生成序号
+          EXISTING=$(git tag -l "v${TZ_DATE}-*" | wc -l)
+          NEXT=$((EXISTING + 1))
+          VERSION="v${TZ_DATE}-${NEXT}"
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "Generated version: ${VERSION}"
+
+      - name: Create git tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag ${{ steps.version.outputs.version }}
+          git push origin ${{ steps.version.outputs.version }}
 
       - name: Build and push
         uses: docker/build-push-action@v6
@@ -45,6 +52,16 @@ jobs:
           context: .
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: ${{ steps.tags.outputs.tags }}
+          tags: |
+            ywsj/mirror-relay:latest
+            ywsj/mirror-relay:${{ steps.version.outputs.version }}
+          build-args: |
+            APP_VERSION=${{ steps.version.outputs.version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.version }}
+          generate_release_notes: true

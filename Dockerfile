@@ -2,6 +2,9 @@ FROM registry:2 AS registry-bin
 
 FROM python:3.12-slim
 
+ARG APP_VERSION=v00000000-0
+ENV APP_VERSION=${APP_VERSION}
+
 WORKDIR /app
 
 RUN apt-get update \

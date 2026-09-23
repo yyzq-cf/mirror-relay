@@ -19,7 +19,7 @@ def _get_version():
     return f'v{date_str}-1'
 
 app = Flask(__name__, static_folder='static')
-APP_VERSION = os.environ.get('APP_VERSION', _get_version())
+APP_VERSION = os.environ.get('APP_VERSION') or _get_version()
 def _load_secret_key():
     """持久化 secret_key 到 /data，避免重启后 session 失效"""
     key_file = os.path.join(DATA_DIR, '.flask_secret_key')
