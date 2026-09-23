@@ -1,0 +1,62 @@
+{% extends 'base.html' %}
+{% block title %}缓存列表 · Mirror Relay{% endblock %}
+{% block content %}
+
+<div class="card">
+    <h2>📦 缓存镜像列表</h2>
+    <form method="GET" action="/cache" style="display: flex; gap: 0.5rem; margin-bottom: 1rem;">
+        <select name="upstream" class="input" style="width: 120px;">
+            <option value="">全部上游</option>
+            <option value="hub" {{ 'selected' if upstream == 'hub' }}>Docker Hub</option>
+            <option value="ghcr" {{ 'selected' if upstream == 'ghcr' }}>ghcr.io</option>
+            <option value="gcr" {{ 'selected' if upstream == 'gcr' }}>gcr.io</option>
+        </select>
+        <input type="text" name="search" class="input" placeholder="搜索镜像名..." value="{{ search }}">
+        <button type="submit" class="btn btn-primary">搜索</button>
+    </form>
+
+    {% if images %}
+    <table>
+        <thead>
+            <tr>
+                <th>上游</th>
+                <th>镜像名</th>
+                <th>Tag</th>
+                <th>大小</th>
+                <th>拉取次数</th>
+                <th>最后拉取</th>
+                <th>操作</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for img in images %}
+            <tr>
+                <td><span class="badge badge-muted">{{ img.upstream }}</span></td>
+                <td>{{ img.image_name }}</td>
+                <td>{{ img.tag or '-' }}</td>
+                <td>{{ (img.size_bytes / 1048576) | round(1) if img.size_bytes else '-' }} MB</td>
+                <td>{{ img.pull_count }}</td>
+                <td style="color: var(--muted); font-size: 0.8rem;">{{ img.last_pulled_at[:19] if img.last_pulled_at else '-' }}</td>
+                <td><button class="btn btn-danger btn-sm" onclick="delCache({{ img.id }})">删除</button></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color: var(--muted); text-align: center; padding: 2rem;">暂无缓存镜像，拉取后将在此显示</p>
+    {% endif %}
+</div>
+
+{% endblock %}
+
+{% block script %}
+<script>
+function delCache(id) {
+    if (!confirm('确认删除此缓存记录？')) return;
+    fetch('/api/cache/delete', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id })
+    }).then(r => r.json()).then(() => location.reload());
+}
+</script>
+{% endblock %}

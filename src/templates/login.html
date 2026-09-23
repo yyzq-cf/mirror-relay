@@ -1,0 +1,14 @@
+{% extends 'base.html' %}
+{% block title %}登录 · Mirror Relay{% endblock %}
+{% block content %}
+<div class="card login-wrap">
+    <h2>🔐 登录管理面板</h2>
+    {% if error %}
+    <p style="color: var(--danger); margin-bottom: 1rem; font-size: 0.875rem;">{{ error }}</p>
+    {% endif %}
+    <form method="POST" action="/login">
+        <input type="password" name="password" class="input" placeholder="管理员密码" autofocus style="margin-bottom: 0.75rem;">
+        <button type="submit" class="btn btn-primary" style="width: 100%;">登录</button>
+    </form>
+</div>
+{% endblock %}

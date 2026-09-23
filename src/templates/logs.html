@@ -1,0 +1,43 @@
+{% extends 'base.html' %}
+{% block title %}拉取日志 · Mirror Relay{% endblock %}
+{% block content %}
+
+<div class="card">
+    <h2>📋 最近拉取日志</h2>
+    {% if logs %}
+    <table>
+        <thead>
+            <tr>
+                <th>时间</th>
+                <th>上游</th>
+                <th>镜像</th>
+                <th>Tag</th>
+                <th>命中</th>
+                <th>来源 IP</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for log in logs %}
+            <tr>
+                <td style="color: var(--muted); font-size: 0.8rem;">{{ log.pulled_at[:19] }}</td>
+                <td><span class="badge badge-muted">{{ log.upstream }}</span></td>
+                <td>{{ log.image_name }}</td>
+                <td>{{ log.tag or '-' }}</td>
+                <td>
+                    {% if log.cache_hit %}
+                    <span class="badge badge-success">命中</span>
+                    {% else %}
+                    <span class="badge badge-warning">透传</span>
+                    {% endif %}
+                </td>
+                <td style="font-family: monospace; font-size: 0.8rem;">{{ log.client_ip }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color: var(--muted); text-align: center; padding: 2rem;">暂无拉取日志</p>
+    {% endif %}
+</div>
+
+{% endblock %}

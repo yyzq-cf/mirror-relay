@@ -1,0 +1,96 @@
+{% extends 'base.html' %}
+{% block title %}白名单 · Mirror Relay{% endblock %}
+{% block content %}
+
+<div class="card">
+    <h2>🛡 白名单管理</h2>
+    <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
+        <label class="switch">
+            <input type="checkbox" id="wl-toggle" {{ 'checked' if enabled }} onchange="toggleWhitelist(this.checked)">
+            <span class="slider"></span>
+        </label>
+        <span>{{ '已开启：只有白名单内 IP 可拉取' if enabled else '已关闭：所有请求均可拉取' }}</span>
+    </div>
+
+    <div class="form-row">
+        <input type="text" id="wl-ip" class="input" placeholder="IP 或 CIDR，如 10.0.0.1 或 10.0.0.0/24" style="flex: 1;">
+        <input type="text" id="wl-label" class="input" placeholder="备注（可选）" style="width: 160px;">
+        <button class="btn btn-primary" onclick="addWhitelist()">添加</button>
+    </div>
+
+    {% if entries %}
+    <table style="margin-top: 1rem;">
+        <thead>
+            <tr>
+                <th>IP / CIDR</th>
+                <th>备注</th>
+                <th>添加时间</th>
+                <th>操作</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for e in entries %}
+            <tr>
+                <td style="font-family: monospace;">{{ e.ip_or_cidr }}</td>
+                <td>{{ e.label or '-' }}</td>
+                <td style="color: var(--muted); font-size: 0.8rem;">{{ e.created_at[:19] if e.created_at else '-' }}</td>
+                <td><button class="btn btn-danger btn-sm" onclick="removeWhitelist('{{ e.ip_or_cidr }}')">删除</button></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color: var(--muted); text-align: center; padding: 1.5rem;">白名单为空</p>
+    {% endif %}
+</div>
+
+<div class="card">
+    <h2>📥 批量导入</h2>
+    <p style="color: var(--muted); font-size: 0.8rem; margin-bottom: 0.5rem;">每行一个 IP/CIDR，可用 # 添加备注，如 <code>10.0.0.1 # 北京服务器</code></p>
+    <textarea id="wl-import" class="input" placeholder="10.0.0.1 # 北京服务器&#10;192.168.1.0/24 # 内网段"></textarea>
+    <button class="btn btn-primary" style="margin-top: 0.5rem;" onclick="importWhitelist()">批量导入</button>
+</div>
+
+{% endblock %}
+
+{% block script %}
+<script>
+function toggleWhitelist(enabled) {
+    fetch('/api/whitelist/toggle', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled })
+    }).then(() => location.reload());
+}
+
+function addWhitelist() {
+    const ip = document.getElementById('wl-ip').value.trim();
+    const label = document.getElementById('wl-label').value.trim();
+    if (!ip) return alert('请输入 IP');
+    fetch('/api/whitelist/add', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ip, label })
+    }).then(r => r.json()).then(d => {
+        if (d.ok) location.reload();
+        else alert(d.error);
+    });
+}
+
+function removeWhitelist(ip) {
+    fetch('/api/whitelist/remove', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ip })
+    }).then(() => location.reload());
+}
+
+function importWhitelist() {
+    const text = document.getElementById('wl-import').value;
+    fetch('/api/whitelist/import', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text })
+    }).then(r => r.json()).then(d => {
+        alert(`成功导入 ${d.added} 条，跳过 ${d.skipped} 条`);
+        location.reload();
+    });
+}
+</script>
+{% endblock %}

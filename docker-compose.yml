@@ -1,0 +1,17 @@
+services:
+  mirror-relay:
+    image: ywsj/mirror-relay:latest
+    container_name: mirror-relay
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+      - "8080:8080"
+    volumes:
+      - mirror-data:/data
+    environment:
+      - MAX_DISK_PCT=80
+      - TARGET_DISK_PCT=70
+      - CLEANUP_INTERVAL=300
+
+volumes:
+  mirror-data:

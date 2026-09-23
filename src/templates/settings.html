@@ -1,0 +1,111 @@
+{% extends 'base.html' %}
+{% block title %}设置 · Mirror Relay{% endblock %}
+{% block content %}
+
+<div class="card">
+    <h2>⚙️ 清理策略</h2>
+    <div class="form-row">
+        <label style="width: 140px; font-size: 0.875rem;">磁盘阈值 (%)</label>
+        <input type="number" id="cfg-max-disk" class="input" value="{{ config.max_disk_pct }}" style="width: 100px;">
+        <span style="color: var(--muted); font-size: 0.8rem;">超过此值触发清理</span>
+    </div>
+    <div class="form-row">
+        <label style="width: 140px; font-size: 0.875rem;">目标使用率 (%)</label>
+        <input type="number" id="cfg-target-disk" class="input" value="{{ config.target_disk_pct }}" style="width: 100px;">
+        <span style="color: var(--muted); font-size: 0.8rem;">清理后降到此值</span>
+    </div>
+    <div class="form-row">
+        <label style="width: 140px; font-size: 0.875rem;">检查间隔 (秒)</label>
+        <input type="number" id="cfg-interval" class="input" value="{{ config.cleanup_interval }}" style="width: 100px;">
+    </div>
+    <button class="btn btn-primary" onclick="saveSettings()">保存</button>
+</div>
+
+<div class="card">
+    <h2>🌐 上游 Registry</h2>
+    <table>
+        <thead>
+            <tr><th>名称</th><th>URL</th><th>路径前缀</th><th>状态</th><th>操作</th></tr>
+        </thead>
+        <tbody>
+            {% for u in upstreams %}
+            <tr>
+                <td>{{ u.name }}</td>
+                <td style="font-family: monospace; font-size: 0.8rem;">{{ u.url }}</td>
+                <td>{{ u.prefix or '(默认)' }}</td>
+                <td><span class="badge badge-{{ 'success' if u.enabled else 'danger' }}">{{ '启用' if u.enabled else '禁用' }}</span></td>
+                <td><button class="btn btn-danger btn-sm" onclick="removeUpstream('{{ u.name }}')">删除</button></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <div class="form-row" style="margin-top: 1rem;">
+        <input type="text" id="up-name" class="input" placeholder="名称" style="width: 100px;">
+        <input type="text" id="up-url" class="input" placeholder="https://registry.example.com" style="flex: 1;">
+        <input type="text" id="up-prefix" class="input" placeholder="路径前缀" style="width: 100px;">
+        <button class="btn btn-primary" onclick="addUpstream()">添加</button>
+    </div>
+</div>
+
+<div class="card">
+    <h2>🔑 修改密码</h2>
+    <div class="form-row">
+        <input type="password" id="old-pw" class="input" placeholder="当前密码" style="flex: 1;">
+    </div>
+    <div class="form-row">
+        <input type="password" id="new-pw" class="input" placeholder="新密码（至少 8 位）" style="flex: 1;">
+    </div>
+    <button class="btn btn-primary" onclick="changePassword()">修改密码</button>
+</div>
+
+{% endblock %}
+
+{% block script %}
+<script>
+function saveSettings() {
+    fetch('/api/settings', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            max_disk_pct: document.getElementById('cfg-max-disk').value,
+            target_disk_pct: document.getElementById('cfg-target-disk').value,
+            cleanup_interval: document.getElementById('cfg-interval').value
+        })
+    }).then(r => r.json()).then(d => {
+        if (d.ok) alert('已保存');
+    });
+}
+
+function addUpstream() {
+    fetch('/api/upstream/add', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            name: document.getElementById('up-name').value,
+            url: document.getElementById('up-url').value,
+            prefix: document.getElementById('up-prefix').value
+        })
+    }).then(r => r.json()).then(d => {
+        if (d.ok) location.reload();
+        else alert(d.error);
+    });
+}
+
+function removeUpstream(name) {
+    fetch('/api/upstream/remove', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name })
+    }).then(() => location.reload());
+}
+
+function changePassword() {
+    const oldPw = document.getElementById('old-pw').value;
+    const newPw = document.getElementById('new-pw').value;
+    fetch('/api/password/change', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ old_password: oldPw, new_password: newPw })
+    }).then(r => r.json()).then(d => {
+        if (d.ok) { alert('密码已修改'); location.reload(); }
+        else alert(d.error);
+    });
+}
+</script>
+{% endblock %}

@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Mirror Relay{% endblock %}</title>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --card: #1e293b;
+            --border: #334155;
+            --text: #e2e8f0;
+            --muted: #94a3b8;
+            --primary: #0ea5e9;
+            --danger: #ef4444;
+            --success: #22c55e;
+            --warning: #f59e0b;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--bg); color: var(--text); line-height: 1.6;
+        }
+        .nav {
+            background: var(--card); border-bottom: 1px solid var(--border);
+            padding: 0 1.5rem; display: flex; align-items: center;
+            height: 56px; position: sticky; top: 0; z-index: 100;
+        }
+        .nav-brand { font-weight: 700; font-size: 1.1rem; margin-right: 2rem; color: var(--primary); }
+        .nav a { color: var(--muted); text-decoration: none; padding: 0.5rem 0.8rem; border-radius: 6px; font-size: 0.9rem; }
+        .nav a:hover, .nav a.active { color: var(--text); background: var(--border); }
+        .nav-right { margin-left: auto; }
+        .container { max-width: 1100px; margin: 0 auto; padding: 1.5rem; }
+        .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 1.25rem; margin-bottom: 1rem; }
+        .card h2 { font-size: 1rem; color: var(--muted); margin-bottom: 0.75rem; font-weight: 600; }
+        .grid { display: grid; gap: 1rem; }
+        .grid-4 { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+        .grid-2 { grid-template-columns: 1fr 1fr; }
+        @media (max-width: 640px) { .grid-2 { grid-template-columns: 1fr; } }
+        .stat { text-align: center; }
+        .stat .num { font-size: 1.6rem; font-weight: 700; color: var(--primary); }
+        .stat .label { font-size: 0.8rem; color: var(--muted); margin-top: 0.25rem; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+        th { text-align: left; color: var(--muted); padding: 0.5rem; border-bottom: 1px solid var(--border); font-weight: 600; }
+        td { padding: 0.5rem; border-bottom: 1px solid var(--border); }
+        tr:hover td { background: rgba(255,255,255,0.02); }
+        .btn { display: inline-block; padding: 0.4rem 0.9rem; border-radius: 6px; border: none; cursor: pointer; font-size: 0.85rem; text-decoration: none; }
+        .btn-primary { background: var(--primary); color: #fff; }
+        .btn-danger { background: var(--danger); color: #fff; }
+        .btn-sm { padding: 0.25rem 0.6rem; font-size: 0.8rem; }
+        .input { width: 100%; padding: 0.5rem 0.75rem; border-radius: 6px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font-size: 0.875rem; }
+        .input:focus { outline: none; border-color: var(--primary); }
+        .form-row { display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem; }
+        .badge { padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; }
+        .badge-success { background: rgba(34,197,94,0.15); color: var(--success); }
+        .badge-warning { background: rgba(245,158,11,0.15); color: var(--warning); }
+        .badge-danger { background: rgba(239,68,68,0.15); color: var(--danger); }
+        .badge-muted { background: rgba(148,163,184,0.15); color: var(--muted); }
+        .switch { position: relative; display: inline-block; width: 44px; height: 24px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; inset: 0; background: var(--border); border-radius: 24px; transition: 0.3s; }
+        .slider:before { content: ""; position: absolute; height: 18px; width: 18px; left: 3px; bottom: 3px; background: #fff; border-radius: 50%; transition: 0.3s; }
+        input:checked + .slider { background: var(--success); }
+        input:checked + .slider:before { transform: translateX(20px); }
+        .toast { position: fixed; top: 70px; right: 20px; padding: 0.75rem 1.25rem; border-radius: 8px; color: #fff; z-index: 999; font-size: 0.875rem; }
+        .toast-ok { background: var(--success); }
+        .toast-err { background: var(--danger); }
+        .login-wrap { max-width: 360px; margin: 80px auto; }
+        textarea.input { min-height: 120px; font-family: monospace; }
+        .bar { height: 8px; border-radius: 4px; background: var(--border); overflow: hidden; margin-top: 0.5rem; }
+        .bar-fill { height: 100%; border-radius: 4px; transition: width 0.5s; }
+    </style>
+</head>
+<body>
+    <nav class="nav">
+        <span class="nav-brand">🔀 Mirror Relay</span>
+        {% if session.get('logged_in') %}
+        <a href="/" class="{{ 'active' if active == 'dashboard' else '' }}">仪表盘</a>
+        <a href="/cache" class="{{ 'active' if active == 'cache' else '' }}">缓存列表</a>
+        <a href="/logs" class="{{ 'active' if active == 'logs' else '' }}">拉取日志</a>
+        <a href="/whitelist" class="{{ 'active' if active == 'whitelist' else '' }}">白名单</a>
+        <a href="/settings" class="{{ 'active' if active == 'settings' else '' }}">设置</a>
+        <a href="/logout" class="nav-right">退出</a>
+        {% endif %}
+    </nav>
+    <div class="container">
+        {% block content %}{% endblock %}
+    </div>
+    {% block script %}{% endblock %}
+</body>
+</html>

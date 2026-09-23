@@ -1,0 +1,74 @@
+{% extends 'base.html' %}
+{% block title %}仪表盘 · Mirror Relay{% endblock %}
+{% block content %}
+
+<div class="grid grid-4" style="margin-bottom: 1rem;">
+    <div class="card stat">
+        <div class="num">{{ stats.total_pulls }}</div>
+        <div class="label">总拉取次数</div>
+    </div>
+    <div class="card stat">
+        <div class="num" style="color: var(--success);">{{ stats.cache_hits }}</div>
+        <div class="label">缓存命中</div>
+    </div>
+    <div class="card stat">
+        <div class="num" style="color: var(--warning);">{{ stats.cache_misses }}</div>
+        <div class="label">透传拉取</div>
+    </div>
+    <div class="card stat">
+        <div class="num">{{ stats.hit_rate }}%</div>
+        <div class="label">命中率</div>
+    </div>
+</div>
+
+<div class="grid grid-2">
+    <div class="card">
+        <h2>💾 磁盘使用</h2>
+        {% set pct = (disk_used / disk_total * 100) | round(1) if disk_total > 0 else 0 %}
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-size: 1.4rem; font-weight: 700;">{{ pct }}%</span>
+            <span style="color: var(--muted); font-size: 0.85rem;">
+                {{ (disk_used / 1073741824) | round(1) }} GB / {{ (disk_total / 1073741824) | round(1) }} GB
+            </span>
+        </div>
+        <div class="bar">
+            <div class="bar-fill" style="width: {{ pct }}%; background: {% if pct > 80 %}var(--danger){% elif pct > 60 %}var(--warning){% else %}var(--success){% endif %};"></div>
+        </div>
+        <div style="margin-top: 0.75rem;">
+            <span class="badge {{ 'badge-success' if not whitelist_enabled else 'badge-warning' }}">
+                白名单 {{ '已开启' if whitelist_enabled else '已关闭' }}
+            </span>
+            <span style="margin-left: 0.5rem; font-size: 0.8rem; color: var(--muted);">缓存镜像: {{ stats.cached_images }} 个</span>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>📦 各上游缓存大小</h2>
+        {% for upstream, size in cache_sizes.items() %}
+        <div style="margin-bottom: 0.5rem; display: flex; justify-content: space-between;">
+            <span style="font-size: 0.875rem;">
+                <span class="badge badge-muted">{{ upstream }}</span>
+            </span>
+            <span style="font-size: 0.875rem; font-weight: 600;">
+                {{ (size / 1048576) | round(1) }} MB
+            </span>
+        </div>
+        {% endfor %}
+        <button class="btn btn-primary btn-sm" style="margin-top: 0.75rem;" onclick="triggerGC()">🗑 手动 GC</button>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block script %}
+<script>
+function triggerGC() {
+    if (!confirm('确认触发垃圾回收？期间拉取可能短暂失败。')) return;
+    fetch('/api/gc/trigger', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+    .then(r => r.json()).then(d => {
+        alert(d.message || 'GC 已触发');
+        setTimeout(() => location.reload(), 2000);
+    });
+}
+</script>
+{% endblock %}
