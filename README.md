@@ -84,7 +84,7 @@ docker run -d \
   --restart always \
   -p 5000:5000 \
   -p 8080:8080 \
-  -v mirror-data:/data \
+  -v ./data:/data \
   ywsj/mirror-relay:latest
 ```
 
