@@ -110,6 +110,7 @@
         <a href="/settings" class="{{ 'active' if active == 'settings' else '' }}">⚙️ 设置</a>
         <span class="nav-right" style="display: flex; align-items: center; gap: 0.5rem;">
             {% if version %}
+            <img src="{{ url_for('static', filename='logo.svg') }}" alt="logo" width="18" height="18" style="border-radius: 3px;">
             <span style="color: var(--muted); font-size: 0.75rem; font-family: monospace; background: var(--border); padding: 2px 8px; border-radius: 4px;">{{ version }}</span>
             {% endif %}
             <a href="https://github.com/yyzq-cf/mirror-relay" target="_blank" title="GitHub" style="text-decoration: none; display: flex; align-items: center;">
