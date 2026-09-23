@@ -32,7 +32,6 @@ jobs:
         id: version
         run: |
           TZ_DATE=$(TZ='Asia/Shanghai' date '+%Y%m%d')
-          # 查询今天已有的 tag 数量，生成序号
           EXISTING=$(git tag -l "v${TZ_DATE}-*" | wc -l)
           NEXT=$((EXISTING + 1))
           VERSION="v${TZ_DATE}-${NEXT}"
@@ -59,6 +58,14 @@ jobs:
             APP_VERSION=${{ steps.version.outputs.version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Update Docker Hub description
+        uses: peter-evans/dockerhub-description@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          repository: ywsj/mirror-relay
+          readme-filepath: ./README.md
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
