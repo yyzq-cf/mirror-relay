@@ -231,7 +231,7 @@ def dashboard():
     cache_sizes = get_cache_dir_sizes()
     return render_template('dashboard.html', stats=stats, version=APP_VERSION,
                            disk_total=disk_total, disk_used=disk_used,
-                           cache_sizes=cache_sizes)
+                           cache_sizes=cache_sizes, whitelist_enabled=db.whitelist_enabled())
 
 
 @app.route('/cache')
