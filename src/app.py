@@ -9,7 +9,17 @@ from flask import (
 )
 import db
 
+import subprocess
+
+def _get_version():
+    """版本号规则: vYYYYMMDD-N (UTC+8)"""
+    from datetime import datetime, timezone, timedelta
+    tz8 = timezone(timedelta(hours=8))
+    date_str = datetime.now(tz8).strftime('%Y%m%d')
+    return f'v{date_str}-1'
+
 app = Flask(__name__, static_folder='static')
+APP_VERSION = os.environ.get('APP_VERSION', _get_version())
 def _load_secret_key():
     """持久化 secret_key 到 /data，避免重启后 session 失效"""
     key_file = os.path.join(DATA_DIR, '.flask_secret_key')
@@ -219,7 +229,7 @@ def dashboard():
     stats = db.get_stats()
     disk_total, disk_used = get_disk_info()
     cache_sizes = get_cache_dir_sizes()
-    return render_template('dashboard.html', stats=stats,
+    return render_template('dashboard.html', stats=stats, version=APP_VERSION,
                            disk_total=disk_total, disk_used=disk_used,
                            cache_sizes=cache_sizes)
 
@@ -230,7 +240,7 @@ def cache_list():
     upstream = request.args.get('upstream', '')
     search = request.args.get('search', '')
     images = db.get_cached_images(upstream=upstream or None, search=search or '')
-    return render_template('cache_list.html', images=images,
+    return render_template('cache_list.html', images=images, version=APP_VERSION,
                            upstream=upstream, search=search)
 
 
@@ -238,7 +248,7 @@ def cache_list():
 @login_required
 def logs():
     pull_logs = db.get_pull_logs(100)
-    return render_template('logs.html', logs=pull_logs)
+    return render_template('logs.html', logs=pull_logs, version=APP_VERSION)
 
 
 @app.route('/whitelist')
@@ -246,7 +256,7 @@ def logs():
 def whitelist_page():
     entries = db.get_whitelist()
     enabled = db.whitelist_enabled()
-    return render_template('whitelist.html', entries=entries, enabled=enabled)
+    return render_template('whitelist.html', entries=entries, version=APP_VERSION, enabled=enabled)
 
 
 @app.route('/settings')
@@ -260,7 +270,7 @@ def settings():
     }
     upstreams = db.get_upstreams()
     twofa_enabled = bool(db.get_config('totp_secret', ''))
-    return render_template('settings.html', config=config, upstreams=upstreams, twofa_enabled=twofa_enabled)
+    return render_template('settings.html', config=config, version=APP_VERSION, upstreams=upstreams, twofa_enabled=twofa_enabled)
 
 
 # ── API ──
