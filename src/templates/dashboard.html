@@ -35,7 +35,8 @@
             <div class="bar-fill" style="width: {{ pct }}%; background: {% if pct > 80 %}var(--danger){% elif pct > 60 %}var(--warning){% else %}var(--success){% endif %};"></div>
         </div>
         <div style="margin-top: 0.75rem;">
-            <span class="badge {{ 'badge-success' if not whitelist_enabled else 'badge-warning' }}">
+            <span class="badge badge-success">● 服务运行中</span>
+            <span class="badge {{ 'badge-success' if not whitelist_enabled else 'badge-warning' }}" style="margin-left: 0.5rem;">
                 白名单 {{ '已开启' if whitelist_enabled else '已关闭' }}
             </span>
             <span style="margin-left: 0.5rem; font-size: 0.8rem; color: var(--muted);">缓存镜像: {{ stats.cached_images }} 个</span>
