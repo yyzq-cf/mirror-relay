@@ -273,6 +273,13 @@ def get_cached_images(upstream=None, search=''):
     return [dict(r) for r in rows]
 
 
+def get_cached_image(image_id):
+    conn = get_conn()
+    row = conn.execute('SELECT * FROM cached_images WHERE id = ?', (image_id,)).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
 def delete_cached_image(image_id):
     conn = get_conn()
     conn.execute('DELETE FROM cached_images WHERE id = ?', (image_id,))

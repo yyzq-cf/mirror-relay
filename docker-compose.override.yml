@@ -1,0 +1,5 @@
+services:
+  mirror-relay:
+    ports:
+      - "5000:5000"
+      - "8081:8080"

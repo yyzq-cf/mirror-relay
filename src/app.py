@@ -337,7 +337,34 @@ def update_settings():
 @login_required
 def cache_delete():
     image_id = request.json.get('id')
+    # Get image info before deleting
+    image = db.get_cached_image(image_id)
+    if not image:
+        return jsonify({'error': '镜像不存在'}), 404
+
+    upstream = image.get('upstream', 'hub')
+    image_name = image.get('image_name', '')
+    tag = image.get('tag', '')
+
+    # Delete from DB first
     db.delete_cached_image(image_id)
+
+    # Delete registry files on disk
+    import shutil
+    import os
+    repo_base = os.path.join(DATA_DIR, 'registry', upstream, 'docker', 'registry', 'v2', 'repositories')
+    image_dir = os.path.join(repo_base, image_name)
+    if os.path.exists(image_dir):
+        shutil.rmtree(image_dir, ignore_errors=True)
+
+    # Run registry GC to reclaim blob space
+    try:
+        import threading
+        from cache_manager import run_registry_gc
+        threading.Thread(target=run_registry_gc, args=(upstream,), daemon=True).start()
+    except Exception:
+        pass
+
     return jsonify({'ok': True})
 
 
