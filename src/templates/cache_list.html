@@ -57,6 +57,12 @@
     {% endif %}
 </div>
 
+{% if images %}
+<div style="text-align: center; margin-top: 1rem;">
+    <button class="btn btn-danger" onclick="clearAllCache()">🗑️ 一键清空所有缓存</button>
+</div>
+{% endif %}
+
 {% endblock %}
 
 {% block script %}
@@ -67,6 +73,21 @@ function delCache(id) {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id })
     }).then(r => r.json()).then(() => location.reload());
+}
+
+function clearAllCache() {
+    if (!confirm('⚠️ 确认清空所有缓存镜像？此操作不可撤销！')) return;
+    if (!confirm('🔴 再次确认：将删除所有上游的所有缓存镜像，确定吗？')) return;
+    fetch('/api/cache/clear-all', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }
+    }).then(r => r.json()).then(data => {
+        if (data.ok) {
+            alert('已清空所有缓存');
+            location.reload();
+        } else {
+            alert(data.message || '清空失败');
+        }
+    });
 }
 </script>
 {% endblock %}

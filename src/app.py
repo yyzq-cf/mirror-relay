@@ -368,6 +368,33 @@ def cache_delete():
     return jsonify({'ok': True})
 
 
+@app.route('/api/cache/clear-all', methods=['POST'])
+@login_required
+def cache_clear_all():
+    """Delete all cached images."""
+    import shutil, os, threading
+    from cache_manager import run_registry_gc
+    
+    # Delete all DB records
+    db.clear_all_cached_images()
+    
+    # Delete all registry files on disk
+    registry_base = os.path.join(DATA_DIR, 'registry')
+    for upstream in ['hub', 'ghcr', 'gcr']:
+        repo_dir = os.path.join(registry_base, upstream, 'docker', 'registry', 'v2', 'repositories')
+        if os.path.exists(repo_dir):
+            shutil.rmtree(repo_dir, ignore_errors=True)
+    
+    # Run GC for all upstreams
+    for upstream in ['hub', 'ghcr', 'gcr']:
+        try:
+            threading.Thread(target=run_registry_gc, args=(upstream,), daemon=True).start()
+        except Exception:
+            pass
+    
+    return jsonify({'ok': True, 'message': 'All cache cleared'})
+
+
 @app.route('/api/2fa/setup', methods=['POST'])
 @login_required
 def setup_2fa():

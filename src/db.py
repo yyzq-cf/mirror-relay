@@ -280,6 +280,13 @@ def get_cached_image(image_id):
     return dict(row) if row else None
 
 
+def clear_all_cached_images():
+    conn = get_conn()
+    conn.execute('DELETE FROM cached_images')
+    conn.commit()
+    conn.close()
+
+
 def delete_cached_image(image_id):
     conn = get_conn()
     conn.execute('DELETE FROM cached_images WHERE id = ?', (image_id,))
