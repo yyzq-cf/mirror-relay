@@ -102,9 +102,9 @@ def _parse_pull_uri(uri):
 
 def _detect_upstream(uri):
     """从 URI 前缀判断上游"""
-    if uri.startswith('/ghcr/'):
+    if '/ghcr/' in uri:
         return 'ghcr'
-    elif uri.startswith('/gcr/'):
+    elif '/gcr/' in uri:
         return 'gcr'
     return 'hub'
 
