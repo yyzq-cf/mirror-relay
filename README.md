@@ -229,6 +229,12 @@ services:
 - [Flask](https://flask.palletsprojects.com/) — Python Web 框架
 - [Nginx](https://nginx.org/) — 反向代理与路由
 
+## ☕ 请作者喝杯咖啡
+
+如果这个项目对你有帮助，欢迎请作者喝杯咖啡 ☕️
+
+![打赏码](assets/donation.jpg)
+
 ## License
 
 MIT
